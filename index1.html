@@ -61,6 +61,26 @@
             color: #000;
         }
 
+        .main-container {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        .sidebar {
+            width: 250px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 10px;
+            font-family: monospace;
+            color: #222;
+            overflow-y: auto;
+            max-height: 600px;
+        }
+
         canvas {
             margin: 20px 0;
             border: 2px solid #ccc;
@@ -75,14 +95,7 @@
         }
 
         .debug {
-            width: 90%;
-            max-width: 600px;
-            background: #fff;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            padding: 10px;
-            font-family: monospace;
-            color: #222;
+            white-space: pre-wrap;
         }
 
         .alertBox {
@@ -120,13 +133,18 @@
         </label>
     </div>
     <div id="alertContainer"></div>
-    <canvas id="graphCanvas" width="900" height="600"></canvas>
+    <div class="main-container">
+        <div class="sidebar">
+            <h3>Debug Output</h3>
+            <div class="debug" id="debugPanel"></div>
+        </div>
+        <canvas id="graphCanvas" width="900" height="600"></canvas>
+    </div>
     <div class="legend">
         <span style="color: yellow">■</span> Visited  
         <span style="color: orange">■</span> Queued/Stack  
         <span style="color: limegreen">■</span> Final Path
     </div>
-    <div class="debug" id="debugPanel"></div>
     <script>
         const canvas = document.getElementById("graphCanvas");
         const ctx = canvas.getContext("2d");
@@ -359,7 +377,6 @@
             drawGraph();
             debugPanel.innerText = '';
         }
-
     </script>
 </body>
 
