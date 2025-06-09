@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BFS/DFS Shortest Path Finder</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #f0f4f8;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            margin: 20px;
+            color: #333;
+        }
+
+        .controls {
+            background: #fff;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        button,
+        select,
+        input[type=range],
+        input[type=number] {
+            padding: 10px 15px;
+            font-size: 14px;
+            border: none;
+            border-radius: 6px;
+            background: #1976d2;
+            color: #fff;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #1565c0;
+        }
+
+        select,
+        input[type=range],
+        input[type=number] {
+            background: #f0f0f0;
+            color: #000;
+        }
+
+        canvas {
+            margin: 20px 0;
+            border: 2px solid #ccc;
+            background: #fff;
+            border-radius: 8px;
+        }
+
+        .legend {
+            font-size: 14px;
+            color: #444;
+            margin-bottom: 10px;
+        }
+
+        .debug {
+            width: 90%;
+            max-width: 600px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 10px;
+            font-family: monospace;
+            color: #222;
+        }
+
+        .alertBox {
+            background: #ffe0e0;
+            border: 1px solid #ff7b7b;
+            color: #a70000;
+            padding: 10px 15px;
+            border-radius: 6px;
+            margin-top: 10px;
+            font-size: 14px;
+            max-width: 800px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🚀 BFS/DFS Shortest Path Visualizer</h1>
+    <div class="controls">
+        <select id="algorithmSelect">
+            <option value="bfs">BFS</option>
+            <option value="dfs">DFS</option>
+        </select>
+        <button onclick="setMode('addNode')">➕ Add Node</button>
+        <button onclick="setMode('addEdge')">🔗 Add Edge</button>
+        <input type="number" id="edgeWeight" placeholder="Weight" min="1" style="width: 80px;">
+        <button onclick="setMode('deleteNode')">❌ Delete Node</button>
+        <button onclick="setMode('deleteEdge')">🧹 Delete Edge</button>
+        <button onclick="toggleBidirectional()">🔁 Toggle Bidirectional</button>
+        <button onclick="setMode('setStart')">🚩 Set Start</button>
+        <button onclick="setMode('setEnd')">🏁 Set End</button>
+        <button onclick="runAlgorithm()">🔍 Run Algorithm</button>
+        <button onclick="resetGraph()">🔄 Reset</button>
+        <label>⏱️ Speed:
+            <input type="range" min="100" max="1000" value="500" id="speedSlider">
+        </label>
+    </div>
+    <div id="alertContainer"></div>
+    <canvas id="graphCanvas" width="900" height="600"></canvas>
+    <div class="legend">
+        <span style="color: yellow">■</span> Visited  
+        <span style="color: orange">■</span> Queued/Stack  
+        <span style="color: limegreen">■</span> Final Path
+    </div>
+    <div class="debug" id="debugPanel"></div>
+    <script>
+        const canvas = document.getElementById("graphCanvas");
+        const ctx = canvas.getContext("2d");
+        const debugPanel = document.getElementById("debugPanel");
+        const alertContainer = document.getElementById("alertContainer");
+        const speedSlider = document.getElementById("speedSlider");
+        const weightInput = document.getElementById("edgeWeight");
+        const algorithmSelect = document.getElementById("algorithmSelect");
+
+        let mode = "addNode";
+        let nodes = [], edges = [];
+        let nodeId = 0;
+        let startNode = null, endNode = null;
+        let isBidirectional = true;
+
+        function showAlert(message) {
+            alertContainer.innerHTML = `<div class="alertBox">⚠️ ${message}</div>`;
+            setTimeout(() => alertContainer.innerHTML = '', 4000);
+        }
+
+        function setMode(m) {
+            mode = m;
+            showAlert(`Mode changed to: ${m}`);
+        }
+
+        function toggleBidirectional() {
+            isBidirectional = !isBidirectional;
+            showAlert("Bidirectional: " + isBidirectional);
+        }
+
+        canvas.addEventListener("click", e => {
+            const x = e.offsetX, y = e.offsetY;
+            if (mode === 'addNode') {
+                nodes.push({ id: nodeId++, x, y });
+            } else {
+                const clicked = getClickedNode(x, y);
+                if (!clicked) return;
+                if (mode === 'addEdge') {
+                    if (!window.tempEdge) {
+                        window.tempEdge = clicked;
+                    } else {
+                        if (clicked.id !== window.tempEdge.id) {
+                            let weight = parseInt(weightInput.value) || 1;
+                            edges.push({ from: window.tempEdge.id, to: clicked.id, weight });
+                            if (isBidirectional) edges.push({ from: clicked.id, to: window.tempEdge.id, weight });
+                        }
+                        delete window.tempEdge;
+                    }
+                } else if (mode === 'deleteNode') {
+                    edges = edges.filter(e => e.from !== clicked.id && e.to !== clicked.id);
+                    nodes = nodes.filter(n => n.id !== clicked.id);
+                    if (startNode === clicked.id) startNode = null;
+                    if (endNode === clicked.id) endNode = null;
+                } else if (mode === 'deleteEdge') {
+                    if (!window.tempEdge) {
+                        window.tempEdge = clicked;
+                    } else {
+                        if (clicked.id !== window.tempEdge.id) {
+                            edges = edges.filter(e => !(e.from === window.tempEdge.id && e.to === clicked.id) && !(isBidirectional && e.from === clicked.id && e.to === window.tempEdge.id));
+                        }
+                        delete window.tempEdge;
+                    }
+                } else if (mode === 'setStart') {
+                    startNode = clicked.id;
+                } else if (mode === 'setEnd') {
+                    endNode = clicked.id;
+                }
+            }
+            drawGraph();
+        });
+
+        function getClickedNode(x, y) {
+            return nodes.find(n => Math.hypot(n.x - x, n.y - y) < 20);
+        }
+
+        function drawGraph(path = []) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            edges.forEach(e => {
+                const from = nodes.find(n => n.id === e.from);
+                const to = nodes.find(n => n.id === e.to);
+                ctx.beginPath();
+                ctx.moveTo(from.x, from.y);
+                ctx.lineTo(to.x, to.y);
+                ctx.strokeStyle = "#aaa";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.fillStyle = "#444";
+                ctx.font = "12px sans-serif";
+                ctx.fillText(e.weight || 1, (from.x + to.x) / 2, (from.y + to.y) / 2);
+            });
+            nodes.forEach(n => {
+                ctx.beginPath();
+                ctx.arc(n.x, n.y, 20, 0, Math.PI * 2);
+                if (path.includes(n.id)) ctx.fillStyle = "limegreen";
+                else if (n.id === startNode) ctx.fillStyle = "red";
+                else if (n.id === endNode) ctx.fillStyle = "blue";
+                else ctx.fillStyle = "lightblue";
+                ctx.fill();
+                ctx.strokeStyle = "#333";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.fillStyle = "black";
+                ctx.font = "bold 14px sans-serif";
+                ctx.fillText(n.id, n.x - 5, n.y + 5);
+            });
+        }
+
+        async function runBFS() {
+            if (startNode == null || endNode == null) return showAlert("Set both start and end nodes");
+            let queue = [startNode];
+            let visited = new Set([startNode]);
+            let parent = {};
+            let animationSpeed = parseInt(speedSlider.value);
+            debugPanel.innerText = '';
+
+            while (queue.length > 0) {
+                debugPanel.innerText += `Queue: [${queue.join(", ")}], Visited: [${[...visited].join(", ")}]\n`;
+                const current = queue.shift();
+                if (current === endNode) break;
+                const neighbors = edges.filter(e => e.from === current);
+                for (let e of neighbors) {
+                    let n = e.to;
+                    if (!visited.has(n)) {
+                        visited.add(n);
+                        parent[n] = current;
+                        queue.push(n);
+                    }
+                }
+                drawGraph();
+                visited.forEach(id => {
+                    const node = nodes.find(n => n.id === id);
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, 20, 0, Math.PI * 2);
+                    ctx.fillStyle = "yellow";
+                    ctx.fill();
+                    ctx.stroke();
+                });
+                queue.forEach(id => {
+                    const node = nodes.find(n => n.id === id);
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, 20, 0, Math.PI * 2);
+                    ctx.fillStyle = "orange";
+                    ctx.fill();
+                    ctx.stroke();
+                });
+                await new Promise(r => setTimeout(r, animationSpeed));
+            }
+
+            let path = [];
+            let temp = endNode;
+            while (temp !== undefined) {
+                path.push(temp);
+                temp = parent[temp];
+            }
+            path.reverse();
+            if (path[0] !== startNode) return showAlert("No path found between Start and End nodes");
+            debugPanel.innerText += `\nFinal Path: [${path.join(" → ")}]`;
+            drawGraph(path);
+        }
+
+        async function runDFS() {
+            if (startNode == null || endNode == null) return showAlert("Set both start and end nodes");
+            let stack = [startNode];
+            let visited = new Set([startNode]);
+            let parent = {};
+            let animationSpeed = parseInt(speedSlider.value);
+            debugPanel.innerText = '';
+
+            while (stack.length > 0) {
+                debugPanel.innerText += `Stack: [${stack.join(", ")}], Visited: [${[...visited].join(", ")}]\n`;
+                const current = stack.pop();
+                if (current === endNode) break;
+                const neighbors = edges.filter(e => e.from === current);
+                for (let e of neighbors) {
+                    let n = e.to;
+                    if (!visited.has(n)) {
+                        visited.add(n);
+                        parent[n] = current;
+                        stack.push(n);
+                    }
+                }
+                drawGraph();
+                visited.forEach(id => {
+                    const node = nodes.find(n => n.id === id);
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, 20, 0, Math.PI * 2);
+                    ctx.fillStyle = "yellow";
+                    ctx.fill();
+                    ctx.stroke();
+                });
+                stack.forEach(id => {
+                    const node = nodes.find(n => n.id === id);
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, 20, 0, Math.PI * 2);
+                    ctx.fillStyle = "orange";
+                    ctx.fill();
+                    ctx.stroke();
+                });
+                await new Promise(r => setTimeout(r, animationSpeed));
+            }
+
+            let path = [];
+            let temp = endNode;
+            while (temp !== undefined) {
+                path.push(temp);
+                temp = parent[temp];
+            }
+            path.reverse();
+            if (path[0] !== startNode) return showAlert("No path found between Start and End nodes");
+            debugPanel.innerText += `\nFinal Path: [${path.join(" → ")}]`;
+            drawGraph(path);
+        }
+
+        function runAlgorithm() {
+            const algorithm = algorithmSelect.value;
+            showAlert(`Running ${algorithm.toUpperCase()}`);
+            if (algorithm === "bfs") {
+                runBFS();
+            } else if (algorithm === "dfs") {
+                runDFS();
+            }
+        }
+
+        function resetGraph() {
+            nodes = [];
+            edges = [];
+            nodeId = 0;
+            startNode = null;
+            endNode = null;
+            drawGraph();
+            debugPanel.innerText = '';
+        }
+
+    </script>
+</body>
+
+</html>
